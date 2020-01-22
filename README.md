@@ -1,6 +1,6 @@
 # PhaserGame_WEB
 
-# SURVIVAL GAME - Web Group Project
+# SURVIVAL GAME (Web Group Project)
 
 CONTROL
 
