@@ -1,7 +1,7 @@
 # PhaserGame_WEB
 Web Group Project
 
-< SURVIVAL GAME >
+SURVIVAL GAME
 
 CONTROL
 
@@ -38,6 +38,14 @@ MANA
 - But, only ghost, unfortunately, mummy will be alive FOREVER.
 
 
-SECRET ROOM
+HEALING CHEST
 
-- 
+- When you go to the chest, it will be automatically open.
+- and a white cute cat will be follow you and increase your health. 
+
+
+SECRET ROOM (incompletion)
+
+- You can enter dungeon by press 'E' in front of the one that is located in the middle ouf of three holes
+  which are placed to top of the map.
+- If you want to return back to previous map which is not the dungeon, go to start point of dungeon and press 'E' again.
