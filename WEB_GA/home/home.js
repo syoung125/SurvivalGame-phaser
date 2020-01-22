@@ -2,15 +2,19 @@ let cursors;
 let player;
 let showDebug = false;
 var game;
+var worldLayer;
 var speed = 175;
 var preSpeed;
+var score = 0;
 
-var enemies;
+var enemies;  
 var total  = 1; //TOTAL ENEMIES
 var hardEnemies = [];
+var skeletons = [];
 var enemySpeed = 1;
 var enemyHardSpeed = 2;
 
+//GHOST AND CAT DIRECTIONS
 var moveRight;
 var moveLeft;
 var moveUp;
@@ -35,7 +39,10 @@ var healingShow = null;
 
 
 let foods;
+var foodRec;
 let potions;
+var potionsRec = [];
+var enterRec;
 var fire;
 
 var mana = true;
@@ -65,12 +72,14 @@ window.onload = function() {
 
 function preload() {
   this.load.image("tiles", "../assets/tilesets/room-tileset.png");
-  this.load.tilemapTiledJSON("map", "../assets/tilemaps/home-map.json");
+  this.load.tilemapTiledJSON("homeMap", "../assets/tilemaps/home-map.json");
+  this.load.tilemapTiledJSON("dungeonMap", "../assets/tilemaps/dungeon-map.json");
   this.load.atlas("atlas", "../assets/atlas/atlas.png", "../assets/atlas/atlas.json");
 
   //LOAD ENEMY SPRITESHEETS
   this.load.spritesheet("ghost", "../assets/sprites/ghost.png", { frameWidth: 32, frameHeight: 32, endFrame: 12 });
   this.load.spritesheet("ghostHard", "../assets/sprites/ghostHard.png", { frameWidth: 32, frameHeight: 32, endFrame: 12 });
+  this.load.spritesheet("skeleton", "../assets/sprites/skeleton.png", { frameWidth: 32, frameHeight: 32, endFrame: 12 } );
 
   //LOAD CHEST SPRITESHEET
   this.load.spritesheet("chest", "../assets/sprites/chest.png", {frameWidth: 32, frameHeight: 32, endFrame: 6});
@@ -80,75 +89,78 @@ function preload() {
   this.load.spritesheet("healing", "../assets/sprites/healing.png", { frameWidth: 16, frameHeight: 16, endFrame: 1 });
 
 
-  // food
+  // LOAD FOOD SPRITESHEET
   this.load.spritesheet("food", "../assets/images/food.png",{ frameWidth: 16, frameHeight: 16, endFrame: 18 });
-
-  //potion
+  // LOAD POTION SPRITESHEET
   this.load.spritesheet("potion", "../assets/images/potion.png",{ frameWidth: 16, frameHeight: 16, endFrame: 9 });
-
-  //explosion
+  // LOAD EXPLOSION SPRITESHEET
   this.load.spritesheet("explosion", "../assets/sprites/explosion.png", { frameWidth: 64, frameHeight: 64, endFrame: 23 });
 
 }
 
-function create() {
-  const map = this.make.tilemap({ key: "map" });
+var map; 
+var currentMap;
+var camera;
+var spawnPoint;
+var colPW;  //collider between player and worldLayer
+
+function setMap(scene, mapName){
+  currentMap = mapName;
+  // currentMap = "dungeonMap";
+  map = scene.make.tilemap({ key: currentMap });
   const tileset = map.addTilesetImage("room-tileset", "tiles");
 
   const belowLayer = map.createStaticLayer("Below Player", tileset, 0, 0);
-  const worldLayer = map.createStaticLayer("World", tileset, 0, 0);
+  worldLayer = map.createStaticLayer("World", tileset, 0, 0);
   const aboveLayer = map.createStaticLayer("Above Player", tileset, 0, 0);
 
   worldLayer.setCollisionByProperty({ collides: true });
   aboveLayer.setDepth(10);
-  const spawnPoint = map.findObject("Objects", obj => obj.name === "Spawn Point");
+  spawnPoint = map.findObject("Objects", obj => obj.name === "Spawn Point");
+
+  const enterArea = map.findObject("Objects", obj => obj.name === "Enter Area");
+  enterRec = new Phaser.GameObjects.Rectangle(scene, enterArea.x, enterArea.y, enterArea.width, enterArea.height);
 
   // Create a sprite with physics enabled via the physics system. The image used for the sprite has
   // a bit of whitespace, so I'm using setSize & setOffset to control the size of the player's body.
-  player = this.physics.add
+  // if(player)
+  if(player == undefined){
+    player = scene.physics.add
     .sprite(spawnPoint.x, spawnPoint.y, "atlas", "misa-front")
     .setSize(30, 40)
     .setOffset(0, 24).setDepth(5);
+  }else{
+    scene.physics.world.removeCollider(colPW);
+    player.x = spawnPoint.x;
+    player.y = spawnPoint.y;
+  }
+  
+  colPW = scene.physics.add.collider(player, worldLayer);
+
+  camera = scene.cameras.main;
+  camera.startFollow(player);
+  camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+}
+
+function initPlayer(){
   player.health = 100;
   player.hunger = 0;
   player.mana = 0;
-  this.physics.add.collider(player, worldLayer);
+}
 
+function create() {
 
-  var foodAmount = 10;
-  foods = new Array();
-  for(var i = 0; i < foodAmount ; i++){
-    foods.push(createFood(this));
-  }
-
-  this.physics.add.overlap(player, foods, eatFood, null, this);
-
-
-  var potionAmount = 5;
-  potions = new Array();
-  for(var i = 0; i < potionAmount ; i++){
-    potions.push(createPotion(this));
-  }
-
-  this.physics.add.overlap(player, potions, eatPotion, null, this);
-
+  setMap(this, "homeMap");
+  initPlayer();
   
-  const camera = this.cameras.main;
-  camera.startFollow(player);
-  camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+  if(currentMap == "homeMap"){
+    initHomeGameObjects(this);
+  }else if(currentMap == "dungeonMap"){
+
+  }
+
 
   cursors = this.input.keyboard.createCursorKeys();
-
-  // Help text that has a "fixed" position on the screen
-  this.add
-    .text(16, 16, 'Arrow keys to move\nPress "D" to show hitboxes', {
-      font: "18px monospace",
-      fill: "#000000",
-      padding: { x: 20, y: 10 },
-      backgroundColor: "#ffffff"
-    })
-    .setScrollFactor(0)
-    .setDepth(30);
 
   // Debug graphics
   this.input.keyboard.once("keydown_D", event => {
@@ -167,27 +179,24 @@ function create() {
     });
   });
 
-  //CREATE ENEMY 
-  //enemy = this.physics.add.sprite(100, 500, 'ghost');
-  enemies = this.physics.add.group();
 
-  var enemy = enemies.create(Phaser.Math.FloatBetween(50, 400),Phaser.Math.FloatBetween(300, 700),"ghost");
-  enemy.type = 1;
-  enemyTimer = this.time.now + ghostDelay;
-  //this.physics.add.collider(player, enemy);
-  this.physics.add.overlap(player, enemies, enemyCatched, null, this);
-  this.physics.add.overlap(player, hardEnemies, hardEnemyCatched, null, this);
- 
-  //CREATE THREASURE CHESTS
-  var chestCat = this.physics.add.sprite(20,270,"chest","0");
-  this.physics.add.overlap(player,chestCat,chestCatOpen,null,this);
+  var scene = this;
+  this.input.keyboard.on("keydown_E", function(event){
+    if(player.x >= enterRec.x && player.x <= enterRec.x + enterRec.width 
+      && player.y >= enterRec.y && player.y <= enterRec.y + enterRec.height){
+      if(currentMap == "homeMap"){
+        setMap(scene, "dungeonMap");
+      }else if(currentMap == "dungeonMap"){
+        setMap(scene, "homeMap");
+      }
+    }
+  });
   
-  healingShow = this.physics.add.sprite(765,33,"healing","0").setScrollFactor(0).setDepth(20).setVisible(false);
 
   const anims = this.anims;
   addAnimations(anims);
-
   fire = this.physics.add.sprite(player.x, player.y, 'explosion').play('explodeAnimation');
+
   setMana();
 }
 
@@ -217,35 +226,30 @@ function update(time, delta) {
     }
 
   }
-  //ENEMY MOVEMENT
   //CREATE ENEMY WITH DELAY
-  if (total < 5 && this.time.now > enemyTimer) {
+  if (total < 15 && this.time.now > enemyTimer) {
       var enemy = enemies.create(Phaser.Math.FloatBetween(50, 400),Phaser.Math.FloatBetween(300, 650),"ghost");
       enemy.type = 1;
       enemyTimer = this.time.now + ghostDelay;
       total++;
-  }else if(total < 8 && this.time.now > enemyTimer) {
+  }else if(total < 25 && this.time.now > enemyTimer) {
       var enemy = enemies.create(Phaser.Math.FloatBetween(50, 400),Phaser.Math.FloatBetween(300, 650),"ghostHard");
       enemy.type = 2;
       hardEnemies.push(enemy);
       enemyTimer = this.time.now + ghostHardDelay;
       total++;
   }
-  //IF THE DISTANCE BETWEEN ENEMY AND PLAYER IS LESS THAN 150
+  //ENEMY MOVEMENT
   enemies.children.iterate(function (child) {
-    console.log(child);
-    if(child != undefined){
-       if(mana){
+    if(child != undefined){ 
+      if(mana && child.type != 3){ //can't kill skeleton
         if(distanceBetween(child, player) < 50){
-          child.setVisible(false);
-          enemies.remove(child);
-          child.setScale(0);
+          killEnemy(child);
         }
       }
-
+      //IF THE DISTANCE BETWEEN ENEMY AND PLAYER IS LESS THAN 150
       if(distanceBetween(child, player) < 150){
-
-        if (child.type == 1) {
+        if (child.type == 1) { //GHOST EASY ENEMY
           followPlayer(child, enemySpeed);
 
           if(moveRight){
@@ -257,7 +261,7 @@ function update(time, delta) {
           }else{
             child.anims.play('ghostFront', true);
           }
-        }else if(child.type == 2){
+        }else if(child.type == 2){ //GHOST HARD ENEMY
           followPlayer(child, enemyHardSpeed);
 
           if(moveRight){
@@ -269,17 +273,42 @@ function update(time, delta) {
           }else{
             child.anims.play('ghostHardFront', true);
           }
+        }else if(child.type == 3){
+          const speedSkeleton = 100;
+
+          // Stop any previous movement from the last frame
+          child.body.setVelocity(0);
+
+          followPlayer(child, speedSkeleton);
+          child.body.velocity.normalize().scale(speedSkeleton);
+
+          if(child.direction.right){
+            child.anims.play('skeletonRight', true);
+          }else if(child.direction.left){
+            child.anims.play('skeletonLeft', true);
+          }else if(child.direction.up){
+            child.anims.play('skeletonBack', true);
+          }else{
+            child.anims.play('skeletonFront', true);
+          }
         }
       }else{
-        if(child.type == 1)
+        if(child.type == 1){
           child.anims.play('ghostFront', true);
+        }
         else if(child.type == 2){
           child.anims.play('ghostHardFront', true);
         }
+        else if(child.type == 3){
+          child.anims.play("skeletonStay",true);
+          child.body.setVelocity(0);
+        }
       }
     }
-   
   });
+
+  // STOP ITEM TIMER IF IT SET
+  manageItemTimer(time, delta);
 
   //PLAYER
   const speed = 175;
@@ -345,15 +374,28 @@ function update(time, delta) {
     if(!mana)
       addPlayerMana(1);
     else
-      addPlayerMana(-3);
+      addPlayerMana(-5);
     manaTimer = this.time.now + manaDelay;
   }
-
-  // STOP ITEM TIMER IF IT SET
-   manageItemTimer(time, delta);
-
    // When the mana gauge is full, set fire
    setMana();
+
+  //UPDATE SCORE
+  score += 0.01;
+  updateScore(this, score);
+}
+
+function updateScore(scene, score){
+  var scoreStr = "Score: " + Math.floor(score);
+  scene.add
+    .text(16, 16, scoreStr, {
+      font: "18px monospace",
+      fill: "#000000",
+      padding: { x: 20, y: 10 },
+      backgroundColor: "#ffffff"
+    })
+    .setScrollFactor(0)
+    .setDepth(30);
 }
 
 function chestCatOpen(chestCat){
@@ -361,6 +403,8 @@ function chestCatOpen(chestCat){
     chestCat = this.physics.add.sprite(20,270,"chest","3");
     cat = this.physics.add.sprite(20,270,"cat","1");
     catNum++;
+
+    score += 100;
   }
 }
 
@@ -404,8 +448,10 @@ function addPlayerMana(mana){
 function createFood(scene){
   var r_x = 600, r_y = 10;
   while(1){
-    r_x = Phaser.Math.FloatBetween(600, 770);
-    r_y = Phaser.Math.FloatBetween(10, 900);
+    // r_x = Phaser.Math.FloatBetween(600, 770);
+    // r_y = Phaser.Math.FloatBetween(10, 900);
+    r_x = Phaser.Math.FloatBetween(foodRec.x, foodRec.x+foodRec.width);
+    r_y = Phaser.Math.FloatBetween(foodRec.y, foodRec.y+foodRec.height);
     if((r_x >= 640 && r_x<=700 && r_y >= 90 && r_y <= 160)
       ||(r_x >= 700 && r_x<=760 && r_y >= 790 && r_y <= 860)){
       continue;
@@ -427,6 +473,7 @@ function eatFood(player, food){
   // console.log('eatFood');
   food.disableBody(true, true);
   addPlayerHunger(-10);
+  score += Phaser.Math.FloatBetween(5,20);
   foods.push(createFood(this));
 
   if(player.hunger <= 0)
@@ -436,25 +483,21 @@ function eatFood(player, food){
 
 
 function createPotion(scene){
-  var r_x = 200, r_y = 150;
-  // while(1){
-    r_x = Phaser.Math.FloatBetween(300, 500);
-    r_y = Phaser.Math.FloatBetween(100, 250);
-
-    // if((r_x >= 640 && r_x<=700 && r_y >= 90 && r_y <= 160)
-    //   ||(r_x >= 700 && r_x<=760 && r_y >= 790 && r_y <= 860)){
-    //   continue;
-    // }else{ break; }
-  // }
-  
+  var r_point = potionRanPos();
   var r_img = Math.floor(Phaser.Math.FloatBetween(0, 8));
-
-  var potion = scene.physics.add.image(r_x, r_y,'potion', r_img)
+  var potion = scene.physics.add.image(r_point[0], r_point[1],'potion', r_img)
   .setScale(2)
   .setDepth(10);
 
-
   return potion;
+}
+
+// Generate random potion point in specific area
+function potionRanPos(){
+  var r_rect = Math.floor(Phaser.Math.FloatBetween(0, 2.9)); 
+  var r_x = Phaser.Math.FloatBetween(potionsRec[r_rect].x, potionsRec[r_rect].x + potionsRec[r_rect].width);
+  var r_y = Phaser.Math.FloatBetween(potionsRec[r_rect].y, potionsRec[r_rect].y + potionsRec[r_rect].height);
+  return [r_x, r_y];
 }
 
 
@@ -472,7 +515,7 @@ function eatPotion(player, potion){
   item[r_item](this);
 
   potion.disableBody(true, true);
-
+  score += Phaser.Math.FloatBetween(5,10);
 }
 
 function releaseTint(){
@@ -533,7 +576,7 @@ function manaIncrease(){
 }
 
 
-
+// MANAGE MANA FUNCTION
 function setMana(){
   if(player.mana <= 0){
     player.mana = 0;
@@ -553,10 +596,15 @@ function setMana(){
   }
 }
 
-function killEnemy(){
-  if(mana){
+function killEnemy(child){
+  child.setVisible(false);
+  child.setScale(0);
+  enemies.remove(child);
 
-  }
+  if(child.type == 1)
+    score += Phaser.Math.FloatBetween(30,50);
+  else if(child.type == 2)
+    score += Phaser.Math.FloatBetween(60,100);
 }
 
 
@@ -569,32 +617,68 @@ function followPlayer(follower, speed){
     return;
   }
 
-
+  //IF ENEMY IS IN THE LEFT SIDE OF THE PLAYER
   if(follower.x < player.x - 10){
-        moveRight = true;
-        moveLeft = false;
-        follower.x += speed;
-      }else if(follower.x > player.x + 10){
-        moveRight = false;
-        moveLeft = true;
-        follower.x -= speed;
-      }else{ //when they are in the same line
-        moveLeft = false;
-        moveRight = false;
-      }
+    moveRight = true;
+    moveLeft = false;
+    if(follower.type == 3){
+      follower.direction.right = true;
+      follower.direction.left = false;
+      follower.body.setVelocityX(speed);
+    }else{
+      follower.x += speed;
+    }
+  }
+  //IF ENEMY IS IN THE RIGHT SIDE OF THE PLAYER
+  else if(follower.x > player.x + 10){
+    moveRight = false;
+    moveLeft = true;
+    if(follower.type == 3){
+      follower.direction.right = false;
+      follower.direction.left = true;
+      follower.body.setVelocityX(-speed);
+    }else{
+      follower.x -= speed;
+    }
+  }else{ //when they are in the same line
+    moveLeft = false;
+    moveRight = false;
+    if(follower.type == 3){
+      follower.direction.left = false;
+      follower.direction.right = false;
+    }
+  }
 
-      if(follower.y < player.y - 10){
-        moveUp = false;
-        moveDown = true
-        follower.y += speed;
-      }else if(follower.y > player.y + 10){
-        moveUp = true;
-        moveDown = false;
-        follower.y -= speed;
-      }else{
-        moveUp = false;
-        moveDown = false;
-      }
+  //IF ENEMY IS IN THE UP SIDE OF THE PLAYER
+  if(follower.y < player.y - 10){
+    moveUp = false;
+    moveDown = true
+    if(follower.type == 3){
+      follower.direction.up = false;
+      follower.direction.down = true;
+      follower.body.setVelocityY(speed);
+    }else{
+      follower.y += speed;
+    }
+  //IF ENEMY IS IN THE DOWN SIDE OF THE PLAYER
+  }else if(follower.y > player.y + 10){
+    moveUp = true;
+    moveDown = false;
+    if(follower.type == 3){
+      follower.direction.up = true;
+      follower.direction.down = false;
+      follower.body.setVelocityY(-speed);
+    }else{
+      follower.y -= speed;
+    }
+  }else{
+    moveUp = false;
+    moveDown = false;
+    if(follower.type == 3){
+      follower.direction.up = false;
+      follower.direction.down = false;
+    }
+  }
 }
 
 function addAnimations(anims){
@@ -682,6 +766,38 @@ function addAnimations(anims){
     repeat: -1
   });
 
+  //SKELETON ANIMATION
+  anims.create({
+    key: 'skeletonStay',
+    frames: anims.generateFrameNumbers('skeleton', { start: 1, end: 1}),
+    frameRate: 6,
+    repeat: -1
+  });
+  anims.create({
+    key: 'skeletonFront',
+    frames: anims.generateFrameNumbers('skeleton', { start: 0, end: 2}),
+    frameRate: 6,
+    repeat: -1
+  });
+  anims.create({
+    key: "skeletonLeft",
+    frames: anims.generateFrameNumbers('skeleton', { start: 3, end: 5}),
+    frameRate: 6,
+    repeat: -1
+  });
+   anims.create({
+    key: "skeletonRight",
+    frames: anims.generateFrameNumbers('skeleton', { start: 6, end: 8}),
+    frameRate: 6,
+    repeat: -1
+  });
+    anims.create({
+    key: "skeletonBack",
+    frames: anims.generateFrameNumbers('skeleton', { start: 9, end: 11}),
+    frameRate: 6,
+    repeat: -1
+  });
+
   //Explode ANIMATION 
   anims.create({
         key: 'explodeAnimation',
@@ -739,5 +855,74 @@ function addAnimations(anims){
     repeat: -1
   });
 
-  
+}
+
+
+
+function changeMap(mapName){
+  currentMap = mapName;
+}
+
+function initHomeGameObjects(scene){
+  const foodArea = map.findObject("Objects", obj => obj.name === "FoodArea");
+  const potionArea1 = map.findObject("Objects", obj => obj.name === "PotionArea1");
+  const potionArea2 = map.findObject("Objects", obj => obj.name === "PotionArea2");
+  const potionArea3 = map.findObject("Objects", obj => obj.name === "PotionArea3");
+  foodRec = new Phaser.GameObjects.Rectangle(scene, foodArea.x, foodArea.y, foodArea.width, foodArea.height);
+  potionsRec.push(new Phaser.GameObjects.Rectangle(scene, potionArea1.x, potionArea1.y, potionArea1.width, potionArea1.height));
+  potionsRec.push(new Phaser.GameObjects.Rectangle(scene, potionArea2.x, potionArea2.y, potionArea2.width, potionArea2.height));
+  potionsRec.push(new Phaser.GameObjects.Rectangle(scene, potionArea3.x, potionArea3.y, potionArea3.width, potionArea3.height));
+
+
+  var foodAmount = 10;
+  foods = new Array();
+  for(var i = 0; i < foodAmount ; i++){
+    foods.push(createFood(scene));
+  }
+
+  scene.physics.add.overlap(player, foods, eatFood, null, scene);
+
+
+  var potionAmount = 5;
+  potions = new Array();
+  for(var i = 0; i < potionAmount ; i++){
+    potions.push(createPotion(scene));
+  }
+
+  scene.physics.add.overlap(player, potions, eatPotion, null, scene);
+
+  //CREATE ENEMIES
+  enemies = scene.physics.add.group();
+  //ONE GHOST ENEMY HERE, OTHERS ARE CREATED IN UPDATE OVER TIME
+  var enemy = enemies.create(Phaser.Math.FloatBetween(50, 400),Phaser.Math.FloatBetween(300, 700),"ghost");
+  enemy.type = 1;
+  enemyTimer = scene.time.now + ghostDelay;
+  //SKELETON ENEMIES
+  for (var i = 0; i < 5; i++) {
+    var skeleton = scene.physics.add.sprite(Phaser.Math.FloatBetween(616, 790),Phaser.Math.FloatBetween(166, 790),"skeleton","1")
+      .setScale(2).setSize(20,25).setOffset(6.5, 6).setDepth(5);
+    skeleton.type = 3;
+    skeleton.direction = {
+      up : false,
+      down : false,
+      left : false,
+      right : false
+    }
+    enemies.add(skeleton);
+    skeletons.push(skeleton);
+  }
+  scene.physics.add.collider(skeletons, skeletons);
+  //SKELETONS CAN COLLIDE WITH WORLD
+  scene.physics.add.collider(skeletons, worldLayer);
+  //WHEN ENEMY CATCHES PLAYER
+  scene.physics.add.overlap(player, enemies, enemyCatched, null, scene);
+  scene.physics.add.overlap(player, hardEnemies, hardEnemyCatched, null, scene);
+ 
+  //CREATE THREASURE CHESTS
+  var chestCat = scene.physics.add.sprite(20,270,"chest","0");
+  scene.physics.add.overlap(player,chestCat,chestCatOpen,null,scene);
+  //HEALING SYMBOL
+  healingShow = scene.physics.add.sprite(765,33,"healing","0").setScrollFactor(0).setDepth(20).setVisible(false);
+
+
 }
