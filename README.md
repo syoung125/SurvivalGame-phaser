@@ -2,7 +2,7 @@
 ![sampleImg](/sample.PNG)
 ## CONTROL
 
-- You can move by controlling direction keys
+- You can move by controlling arrow keys
 
 
 ## CONCEPT
