@@ -9,6 +9,7 @@
 
 - You should survive in the game. When your health become 0% or When your hunger is 100%, you will die.
 - Hunger will increase steadily, so you should eat food from outside to maintain your hunger lower.
+- The longer you survive in this game, the higer your score will become.
 
 
 ## ENEMIES
