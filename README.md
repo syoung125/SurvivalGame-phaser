@@ -1,5 +1,5 @@
 # SURVIVAL GAME (Web Group Project - Phaser Game) 
-
+![sampleImg](/sample.PNG)
 ## CONTROL
 
 - You can move by controlling direction keys
