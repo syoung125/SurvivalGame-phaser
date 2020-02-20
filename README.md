@@ -26,7 +26,7 @@
   It has an random effect to you.
     1) Speed up: You can run away from enemies faster for a while.
     2) Invisible: You can be invisible, so enemies couldn't notice you.
-    3) Increase big amont of mona: It will increase 20 mana at once.
+    3) Increase big amount of mona: It will increase 20 mana at once.
 
 
 ## MANA
